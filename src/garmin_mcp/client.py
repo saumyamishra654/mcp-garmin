@@ -45,11 +45,24 @@ class GarminClient:
             return self._api
 
     async def call(self, method: str, *args: Any, **kwargs: Any) -> Any:
-        """Invoke a garminconnect method by name, retrying once after re-login.
+        """Invoke a read-only garminconnect method, retrying once after re-login.
 
         Garmin expires sessions server-side without warning; a single retry on
         a refreshed session turns that from an error into a hiccup.
         """
+        return await self._invoke(method, args, kwargs, retry=True)
+
+    async def write(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        """Invoke a garminconnect method that changes data, without retrying.
+
+        A failure can arrive after Garmin already applied the change, so a
+        retry could create a duplicate activity or weigh-in.
+        """
+        return await self._invoke(method, args, kwargs, retry=False)
+
+    async def _invoke(
+        self, method: str, args: tuple, kwargs: dict, *, retry: bool
+    ) -> Any:
         api = await self._session()
         fn: Callable[..., Any] = getattr(api, method)
         try:
@@ -57,6 +70,8 @@ class GarminClient:
         except NotAuthorisedError:
             raise
         except Exception as exc:
+            if not retry:
+                raise
             logger.warning("Garmin call %s failed (%s); re-authenticating", method, exc)
             async with self._lock:
                 self._api = None

@@ -23,6 +23,9 @@ def build_server(settings: Settings) -> FastMCP:
         # Without a stable key, restarting the container invalidates every
         # token FastMCP has issued and all clients must sign in again.
         jwt_signing_key=settings.jwt_signing_key,
+        # Only the login is used, so ask for read-only profile access rather
+        # than FastMCP's default "user", which can also edit the profile.
+        required_scopes=["read:user"],
     )
 
     mcp = FastMCP(
@@ -31,7 +34,7 @@ def build_server(settings: Settings) -> FastMCP:
             "Access to the owner's Garmin Connect data: activities, sleep, "
             "HRV, Body Battery, training readiness and status, VO2 max, gear "
             "and weight. Dates are YYYY-MM-DD and default to today. "
-            "Tools whose description starts with WRITE or DESTRUCTIVE change "
+            "Tools whose description starts with WRITE change "
             "the user's real training record and do nothing unless "
             "confirm=true; ask the user before setting it."
         ),
@@ -39,7 +42,7 @@ def build_server(settings: Settings) -> FastMCP:
     )
     mcp.add_middleware(GitHubAllowlistMiddleware(settings.allowed_github_logins))
 
-    tools.register(mcp, GarminClient(settings.token_dir))
+    tools.register(mcp, GarminClient(settings.token_dir), settings.timezone)
     routes.register(mcp, settings)
     return mcp
 

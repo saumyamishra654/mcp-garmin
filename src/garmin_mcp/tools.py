@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from fastmcp import FastMCP
 from pydantic import Field
@@ -34,15 +35,17 @@ REFUSED = {
 }
 
 
-def _day(value: str | None) -> str:
-    return value or date.today().isoformat()
+def register(mcp: FastMCP, garmin: GarminClient, timezone: str = "UTC") -> None:
+    zone = ZoneInfo(timezone)
 
+    def _today() -> date:
+        return datetime.now(zone).date()
 
-def _end(value: str | None) -> str:
-    return value or date.today().isoformat()
+    def _day(value: str | None) -> str:
+        return value or _today().isoformat()
 
+    _end = _day
 
-def register(mcp: FastMCP, garmin: GarminClient) -> None:
     # ---------------- diagnostics ----------------
 
     @mcp.tool
@@ -233,7 +236,7 @@ def register(mcp: FastMCP, garmin: GarminClient) -> None:
         Convenience for "how is my training going" questions, which otherwise
         need four separate round trips.
         """
-        today = date.today()
+        today = _today()
         since = (today - timedelta(days=days)).isoformat()
         return {
             "days": days,
@@ -262,7 +265,7 @@ def register(mcp: FastMCP, garmin: GarminClient) -> None:
         status: Annotated[str, Field(description="active, future or past.")] = "active",
     ) -> Any:
         """Get training goals."""
-        return await garmin.call("get_goals", status, 0, 30)
+        return await garmin.call("get_goals", status, 1, 30)
 
     @mcp.tool
     async def garmin_get_earned_badges() -> Any:
@@ -330,7 +333,18 @@ def register(mcp: FastMCP, garmin: GarminClient) -> None:
         start_date: StartDate, end_date: EndDate = None
     ) -> Any:
         """List workouts scheduled on the calendar in a date range."""
-        return await garmin.call("get_scheduled_workouts", start_date, _end(end_date))
+        # Garmin serves the calendar a month at a time; fetch every month the
+        # range touches.
+        first = date.fromisoformat(start_date)
+        last = date.fromisoformat(_end(end_date))
+        months = []
+        year, month = first.year, first.month
+        while (year, month) <= (last.year, last.month):
+            months.append(
+                await garmin.call("get_scheduled_workouts", year, month)
+            )
+            year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        return months
 
     # ---------------- writes ----------------
     # Every tool below changes data in the user's real Garmin account, so each
@@ -354,7 +368,7 @@ def register(mcp: FastMCP, garmin: GarminClient) -> None:
         """
         if not confirm:
             return REFUSED
-        return await garmin.call("upload_workout", workout_json)
+        return await garmin.write("upload_workout", workout_json)
 
     @mcp.tool
     async def garmin_schedule_workout(
@@ -365,7 +379,7 @@ def register(mcp: FastMCP, garmin: GarminClient) -> None:
         """WRITE. Put an existing workout on the calendar for a given date."""
         if not confirm:
             return REFUSED
-        return await garmin.call("schedule_workout", workout_id, cdate)
+        return await garmin.write("schedule_workout", workout_id, cdate)
 
     @mcp.tool
     async def garmin_create_manual_activity(
@@ -388,7 +402,7 @@ def register(mcp: FastMCP, garmin: GarminClient) -> None:
         """
         if not confirm:
             return REFUSED
-        return await garmin.call(
+        return await garmin.write(
             "create_manual_activity",
             start_datetime,
             time_zone,
@@ -410,16 +424,4 @@ def register(mcp: FastMCP, garmin: GarminClient) -> None:
         """WRITE. Record a weigh-in."""
         if not confirm:
             return REFUSED
-        return await garmin.call("add_weigh_in", weight, unit, timestamp)
-
-    @mcp.tool
-    async def garmin_delete_activity(
-        activity_id: ActivityId, confirm: Confirm = False
-    ) -> Any:
-        """DESTRUCTIVE. Permanently delete an activity from Garmin Connect.
-
-        There is no undo. Confirm the exact activity with the user first.
-        """
-        if not confirm:
-            return REFUSED
-        return await garmin.call("delete_activity", activity_id)
+        return await garmin.write("add_weigh_in", weight, unit, timestamp)

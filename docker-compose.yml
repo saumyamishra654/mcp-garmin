@@ -1,0 +1,28 @@
+# Single-host deployment: the MCP server behind Caddy, which obtains and renews
+# the TLS certificate for DOMAIN on its own. Needs ports 80 and 443 open.
+services:
+  garmin:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - garmin
+
+volumes:
+  caddy_data:

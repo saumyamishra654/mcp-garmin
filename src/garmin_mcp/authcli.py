@@ -38,10 +38,10 @@ def main() -> int:
         email=email,
         password=password,
         prompt_mfa=lambda: input("MFA code: ").strip(),
-        # One attempt per run, deliberately. Garmin rate-limits its sign-in
-        # endpoints per account, and the library's default of 3 turns a single
-        # invocation into three strikes against that budget.
-        retry_attempts=1,
+        # No retries, deliberately. Garmin rate-limits its sign-in endpoints per
+        # account, and the library's default of 3 turns a single invocation
+        # into several strikes against that budget.
+        retry_attempts=0,
     )
 
     try:

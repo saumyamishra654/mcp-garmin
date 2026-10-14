@@ -9,7 +9,9 @@ dependencies = [
     "fastmcp>=3.4.5,<4",
     # Garmin Connect is undocumented and changes without notice; pin tightly
     # and upgrade deliberately.
-    "garminconnect==0.3.8",
+    "garminconnect==0.3.17",
+    # Lets TIMEZONE resolve inside slim images that ship no zoneinfo.
+    "tzdata",
     "anyio>=4.0",
     "pydantic>=2.10.5",
     "pydantic-settings>=2.7.1",

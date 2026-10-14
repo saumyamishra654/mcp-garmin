@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # Garmin OAuth tokens produced by the one-time `garmin-mcp-auth` run.
     data_dir: Path = Field(default=Path("/data"), alias="DATA_DIR")
 
+    # IANA zone that "today" means. The server clock is UTC, so without this
+    # an evening question in UTC+5:30 lands on the wrong day.
+    timezone: str = Field(default="UTC", alias="TIMEZONE")
+
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")
 

@@ -78,13 +78,13 @@ closed rather than exposing health data to any GitHub user.
 `garmin_get_scheduled_workouts`
 
 **Writes** — `garmin_upload_workout`, `garmin_schedule_workout`,
-`garmin_create_manual_activity`, `garmin_add_weigh_in`,
-`garmin_delete_activity`
+`garmin_create_manual_activity`, `garmin_add_weigh_in`
 
 Every write tool takes `confirm` and does nothing until it is `true`. These
 change a real training record that feeds load and fitness metrics, so an
 agent should show its intent and get agreement first rather than write
-speculatively.
+speculatively. Writes are never retried, so a failure that Garmin already
+applied cannot become a duplicate. There is deliberately no delete tool.
 
 ## Setup
 
@@ -147,3 +147,17 @@ server-side are re-established once and the call retried.
 ## Licence
 
 MIT
+
+## Deploying with Docker Compose (Caddy for TLS)
+
+On a host with ports 80 and 443 open:
+
+```
+git clone https://github.com/saumyamishra654/mcp-garmin && cd mcp-garmin
+cp .env.example .env          # fill it in, plus DOMAIN=<host name>
+docker compose run --rm -it garmin garmin-mcp-auth
+docker compose up -d --build
+```
+
+`DOMAIN` can be a free wildcard-DNS name such as `<ip-with-dashes>.sslip.io`;
+Caddy fetches the certificate. Set `BASE_URL=https://<DOMAIN>`.
